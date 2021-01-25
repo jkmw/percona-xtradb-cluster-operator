@@ -343,115 +343,108 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		}
 	}
 
-	haProxySet := statefulset.NewHAProxy(o)
-	haProxyService := pxc.NewServiceHAProxy(o)
-
 	if o.Spec.HAProxy != nil && o.Spec.HAProxy.Enabled {
-		err = r.updatePod(haProxySet, o.Spec.HAProxy, o, nil)
+
+		err := r.updatePod(statefulset.NewHAProxy(o), o.Spec.HAProxy, o, nil)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "HAProxy upgrade error")
 		}
 
-		currentService := &corev1.Service{}
-		err := r.client.Get(context.TODO(), types.NamespacedName{Name: haProxyService.Name, Namespace: haProxyService.Namespace}, currentService)
+		oldHAProxyService := &corev1.Service{}
+		err = r.client.Get(context.TODO(), pxc.NewServiceHaproxyName(o), oldHAProxyService)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "failed to get HAProxy service")
 		}
 
+		newHAProxyService := oldHAProxyService.DeepCopy()
+
 		ports := []corev1.ServicePort{
 			{
 				Port:       3306,
+				Protocol:   corev1.ProtocolTCP,
 				TargetPort: intstr.FromInt(3306),
 				Name:       "mysql",
 			},
 			{
 				Port:       3309,
+				Protocol:   corev1.ProtocolTCP,
 				TargetPort: intstr.FromInt(3309),
 				Name:       "proxy-protocol",
 			},
 		}
 
+		newHAProxyService.Spec.Ports = ports
+		newHAProxyService.Spec.Type = corev1.ServiceTypeClusterIP
 		if len(o.Spec.HAProxy.ServiceType) > 0 {
-			//Upgrading service only if something is changed
-			if currentService.Spec.Type != o.Spec.HAProxy.ServiceType {
-				currentService.Spec.Ports = ports
-				currentService.Spec.Type = o.Spec.HAProxy.ServiceType
-			}
-			//Checking default ServiceType
-		} else if currentService.Spec.Type != corev1.ServiceTypeClusterIP {
-			currentService.Spec.Ports = ports
-			currentService.Spec.Type = corev1.ServiceTypeClusterIP
+			newHAProxyService.Spec.Type = o.Spec.HAProxy.ServiceType
 		}
 
-		if currentService.Spec.Type == corev1.ServiceTypeLoadBalancer || currentService.Spec.Type == corev1.ServiceTypeNodePort {
+		if newHAProxyService.Spec.Type == corev1.ServiceTypeLoadBalancer || newHAProxyService.Spec.Type == corev1.ServiceTypeNodePort {
 			if len(o.Spec.HAProxy.ExternalTrafficPolicy) > 0 {
-				currentService.Spec.ExternalTrafficPolicy = o.Spec.HAProxy.ExternalTrafficPolicy
-			} else if currentService.Spec.ExternalTrafficPolicy != o.Spec.HAProxy.ExternalTrafficPolicy {
-				currentService.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
+				newHAProxyService.Spec.ExternalTrafficPolicy = o.Spec.HAProxy.ExternalTrafficPolicy
+			} else if newHAProxyService.Spec.ExternalTrafficPolicy != o.Spec.HAProxy.ExternalTrafficPolicy {
+				newHAProxyService.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
 			}
 		}
 
 		if o.CompareVersionWith("1.6.0") >= 0 {
-			currentService.Spec.Ports = append(ports,
+			newHAProxyService.Spec.Ports = append(ports,
 				corev1.ServicePort{
 					Port:       33062,
+					Protocol:   corev1.ProtocolTCP,
 					TargetPort: intstr.FromInt(33062),
 					Name:       "mysql-admin",
 				},
 			)
 		}
 
-		err = r.client.Update(context.TODO(), currentService)
+		err = updateServiceIfNeeded(r.client, oldHAProxyService, newHAProxyService)
 		if err != nil {
 			err = fmt.Errorf("HAProxy service upgrade error: %v", err)
 			return reconcile.Result{}, err
 		}
 
-		haProxyServiceReplicas := pxc.NewServiceHAProxyReplicas(o)
-		currentServiceReplicas := &corev1.Service{}
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: haProxyServiceReplicas.Name, Namespace: haProxyServiceReplicas.Namespace}, currentServiceReplicas)
+		currentHAProxyServiceReplicas := &corev1.Service{}
+		err = r.client.Get(context.TODO(), pxc.NewServiceHAProxyReplicasName(o), currentHAProxyServiceReplicas)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "failed to get HAProxyReplicas service")
 		}
 
+		newHAProxyServiceReplicas := currentHAProxyServiceReplicas.DeepCopy()
+
 		replicaPorts := []corev1.ServicePort{
 			{
 				Port:       3306,
+				Protocol:   corev1.ProtocolTCP,
 				TargetPort: intstr.FromInt(3307),
 				Name:       "mysql-replicas",
 			},
 		}
+
+		newHAProxyServiceReplicas.Spec.Ports = replicaPorts
+		newHAProxyServiceReplicas.Spec.Type = corev1.ServiceTypeClusterIP
 		if len(o.Spec.HAProxy.ReplicasServiceType) > 0 {
-			//Upgrading service only if something is changed
-			if currentServiceReplicas.Spec.Type != o.Spec.HAProxy.ReplicasServiceType {
-				currentServiceReplicas.Spec.Ports = replicaPorts
-				currentServiceReplicas.Spec.Type = o.Spec.HAProxy.ReplicasServiceType
-			}
-			//Checking default ServiceType
-		} else if currentServiceReplicas.Spec.Type != corev1.ServiceTypeClusterIP {
-			currentServiceReplicas.Spec.Ports = replicaPorts
-			currentServiceReplicas.Spec.Type = corev1.ServiceTypeClusterIP
+			newHAProxyServiceReplicas.Spec.Type = o.Spec.PXC.ReplicasServiceType
 		}
 
-		if currentServiceReplicas.Spec.Type == corev1.ServiceTypeLoadBalancer || currentServiceReplicas.Spec.Type == corev1.ServiceTypeNodePort {
+		if newHAProxyServiceReplicas.Spec.Type == corev1.ServiceTypeLoadBalancer || newHAProxyServiceReplicas.Spec.Type == corev1.ServiceTypeNodePort {
 			if len(o.Spec.HAProxy.ReplicasExternalTrafficPolicy) > 0 {
-				currentServiceReplicas.Spec.ExternalTrafficPolicy = o.Spec.HAProxy.ReplicasExternalTrafficPolicy
+				newHAProxyServiceReplicas.Spec.ExternalTrafficPolicy = o.Spec.HAProxy.ReplicasExternalTrafficPolicy
 			} else {
-				currentServiceReplicas.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
+				newHAProxyServiceReplicas.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
 			}
 		}
 
-		err = r.client.Update(context.TODO(), currentServiceReplicas)
+		err = updateServiceIfNeeded(r.client, currentHAProxyServiceReplicas, newHAProxyServiceReplicas)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "HAProxyReplicas service upgrade error")
 		}
 	} else {
-		err = r.deleteStatefulSet(o.Namespace, haProxySet, false)
+		err = r.deleteStatefulSet(o.Namespace, statefulset.NewHAProxy(o), false)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "delete HAProxy stateful set")
 		}
-		haProxyReplicasService := pxc.NewServiceHAProxyReplicas(o)
-		err = r.deleteServices([]*corev1.Service{haProxyService, haProxyReplicasService})
+		err = r.deleteServices([]types.NamespacedName{pxc.NewServiceHaproxyName(o), pxc.NewServiceHAProxyReplicasName(o)})
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "delete HAProxy replica service")
 		}
@@ -531,8 +524,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		proxysqlUnreadyService := pxc.NewServiceProxySQLUnready(o)
-		err = r.deleteServices([]*corev1.Service{proxysqlService, proxysqlUnreadyService})
+		err = r.deleteServices([]types.NamespacedName{pxc.NewServiceProxySQLName(o), pxc.NewServiceProxySQLUnreadyName(o)})
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -995,23 +987,21 @@ func (r *ReconcilePerconaXtraDBCluster) deleteStatefulSet(namespace string, sfs 
 	return nil
 }
 
-func (r *ReconcilePerconaXtraDBCluster) deleteServices(svcs []*corev1.Service) error {
-	for _, s := range svcs {
-		err := r.client.Get(context.TODO(), types.NamespacedName{
-			Name:      s.Name,
-			Namespace: s.Namespace,
-		}, &corev1.Service{})
+func (r *ReconcilePerconaXtraDBCluster) deleteServices(svcs []types.NamespacedName) error {
+	for _, svcName := range svcs {
+		svc := &corev1.Service{}
+		err := r.client.Get(context.TODO(), svcName, svc)
 		if err != nil && !k8serrors.IsNotFound(err) {
-			return errors.Wrapf(err, "get service: %s", s.Name)
+			return errors.Wrapf(err, "get service: %s", svcName.Name)
 		}
 
 		if k8serrors.IsNotFound(err) {
 			continue
 		}
 
-		err = r.client.Delete(context.TODO(), s)
+		err = r.client.Delete(context.TODO(), svc)
 		if err != nil {
-			return errors.Wrapf(err, "delete service: %s", s.Name)
+			return errors.Wrapf(err, "delete service: %s", svcName.Name)
 		}
 	}
 	return nil
@@ -1108,4 +1098,41 @@ func createOrUpdateConfigmap(cl client.Client, configMap *corev1.ConfigMap) erro
 	}
 
 	return nil
+}
+
+func updateServiceIfNeeded(cl client.Client, old, new *corev1.Service) error {
+	if !isServicesSpecEqual(&old.Spec, &new.Spec) || !reflect.DeepEqual(old.Annotations, new.Annotations) ||
+		!reflect.DeepEqual(old.Labels, new.Labels) || !reflect.DeepEqual(new.Spec.Selector, old.Spec.Selector) {
+		log.Info("UPDATING HAPROXY", "name", new.Name)
+		return cl.Update(context.TODO(), new)
+	}
+	return nil
+}
+
+func isServicesSpecEqual(old, new *corev1.ServiceSpec) bool {
+	if old.Type != new.Type || !isServicesPortsEqual(old.Ports, new.Ports) ||
+		old.ExternalTrafficPolicy != new.ExternalTrafficPolicy ||
+		!reflect.DeepEqual(old.LoadBalancerSourceRanges, new.LoadBalancerSourceRanges) {
+
+		return false
+	}
+	return true
+}
+
+func isServicesPortsEqual(old, new []corev1.ServicePort) bool {
+	if len(old) != len(new) {
+		return false
+	}
+
+	for _, oldSpec := range old {
+		for _, newSpec := range new {
+			if oldSpec.Name == newSpec.Name {
+				if oldSpec.Port != newSpec.Port || oldSpec.Protocol != newSpec.Protocol ||
+					oldSpec.TargetPort.IntVal != newSpec.TargetPort.IntVal {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
