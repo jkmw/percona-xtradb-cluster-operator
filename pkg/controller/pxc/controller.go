@@ -424,7 +424,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		newHAProxyServiceReplicas.Spec.Ports = replicaPorts
 		newHAProxyServiceReplicas.Spec.Type = corev1.ServiceTypeClusterIP
 		if len(o.Spec.HAProxy.ReplicasServiceType) > 0 {
-			newHAProxyServiceReplicas.Spec.Type = o.Spec.PXC.ReplicasServiceType
+			newHAProxyServiceReplicas.Spec.Type = o.Spec.HAProxy.ReplicasServiceType
 		}
 
 		if newHAProxyServiceReplicas.Spec.Type == corev1.ServiceTypeLoadBalancer || newHAProxyServiceReplicas.Spec.Type == corev1.ServiceTypeNodePort {
