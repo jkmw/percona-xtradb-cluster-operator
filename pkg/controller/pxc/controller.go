@@ -398,10 +398,11 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 			)
 		}
 
-		err = updateServiceIfNeeded(r.client, oldHAProxyService, newHAProxyService)
-		if err != nil {
-			err = fmt.Errorf("HAProxy service upgrade error: %v", err)
-			return reconcile.Result{}, err
+		if isServiceNeedsToUpdate(r.client, oldHAProxyService, newHAProxyService) {
+			err = r.client.Update(context.Background(), newHAProxyService)
+			if err != nil {
+				return reconcile.Result{}, errors.Wrap(err, "HAProxy service upgrade")
+			}
 		}
 
 		currentHAProxyServiceReplicas := &corev1.Service{}
@@ -435,9 +436,11 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 			}
 		}
 
-		err = updateServiceIfNeeded(r.client, currentHAProxyServiceReplicas, newHAProxyServiceReplicas)
-		if err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "HAProxyReplicas service upgrade error")
+		if isServiceNeedsToUpdate(r.client, currentHAProxyServiceReplicas, newHAProxyServiceReplicas) {
+			err = r.client.Update(context.TODO(), newHAProxyServiceReplicas)
+			if err != nil {
+				return reconcile.Result{}, errors.Wrap(err, "HAProxyReplicas service upgrade error")
+			}
 		}
 	} else {
 		err = r.deleteStatefulSet(o.Namespace, statefulset.NewHAProxy(o), false)
@@ -1100,16 +1103,16 @@ func createOrUpdateConfigmap(cl client.Client, configMap *corev1.ConfigMap) erro
 	return nil
 }
 
-func updateServiceIfNeeded(cl client.Client, old, new *corev1.Service) error {
-	if !isServicesSpecEqual(&old.Spec, &new.Spec) || !reflect.DeepEqual(old.Annotations, new.Annotations) ||
+func isServiceNeedsToUpdate(cl client.Client, old, new *corev1.Service) bool {
+	if !isServicesSpecEqual(old.Spec, new.Spec) || !reflect.DeepEqual(old.Annotations, new.Annotations) ||
 		!reflect.DeepEqual(old.Labels, new.Labels) || !reflect.DeepEqual(new.Spec.Selector, old.Spec.Selector) {
-		log.Info("UPDATING HAPROXY", "name", new.Name)
-		return cl.Update(context.TODO(), new)
+
+		return true
 	}
-	return nil
+	return false
 }
 
-func isServicesSpecEqual(old, new *corev1.ServiceSpec) bool {
+func isServicesSpecEqual(old, new corev1.ServiceSpec) bool {
 	if old.Type != new.Type || !isServicesPortsEqual(old.Ports, new.Ports) ||
 		old.ExternalTrafficPolicy != new.ExternalTrafficPolicy ||
 		!reflect.DeepEqual(old.LoadBalancerSourceRanges, new.LoadBalancerSourceRanges) {
