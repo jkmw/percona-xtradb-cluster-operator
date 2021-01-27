@@ -103,7 +103,7 @@ func NewServiceProxySQLUnready(cr *api.PerconaXtraDBCluster) *corev1.Service {
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-proxysql-unready",
+			Name:      ProxySQLUnreadyServiceNamespacedName(cr).Name,
 			Namespace: cr.Namespace,
 			Annotations: map[string]string{
 				"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
@@ -145,7 +145,7 @@ func NewServiceProxySQLUnready(cr *api.PerconaXtraDBCluster) *corev1.Service {
 	return obj
 }
 
-func NewServiceProxySQLUnreadyName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
+func ProxySQLUnreadyServiceNamespacedName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
 	return types.NamespacedName{
 		Name:      cr.Name + "-proxysql-unready",
 		Namespace: cr.Namespace,
@@ -169,7 +169,7 @@ func NewServiceProxySQL(cr *api.PerconaXtraDBCluster) *corev1.Service {
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-proxysql",
+			Name:      ProxySQLServiceNamespacedName(cr).Name,
 			Namespace: cr.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":     "percona-xtradb-cluster",
@@ -215,7 +215,7 @@ func NewServiceProxySQL(cr *api.PerconaXtraDBCluster) *corev1.Service {
 	return obj
 }
 
-func NewServiceProxySQLName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
+func ProxySQLServiceNamespacedName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
 	return types.NamespacedName{
 		Name:      cr.Name + "-proxysql",
 		Namespace: cr.Namespace,
@@ -239,7 +239,7 @@ func NewServiceHAProxy(cr *api.PerconaXtraDBCluster) *corev1.Service {
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      NewServiceHaproxyName(cr).Name,
+			Name:      HaproxyServiceNamespacedName(cr).Name,
 			Namespace: cr.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":       "percona-xtradb-cluster",
@@ -296,7 +296,7 @@ func NewServiceHAProxy(cr *api.PerconaXtraDBCluster) *corev1.Service {
 	return obj
 }
 
-func NewServiceHaproxyName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
+func HaproxyServiceNamespacedName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
 	return types.NamespacedName{
 		Name:      cr.Name + "-haproxy",
 		Namespace: cr.Namespace,
@@ -320,7 +320,7 @@ func NewServiceHAProxyReplicas(cr *api.PerconaXtraDBCluster) *corev1.Service {
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-haproxy-replicas",
+			Name:      HAProxyReplicasNamespacedName(cr).Name,
 			Namespace: cr.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":       "percona-xtradb-cluster",
@@ -361,7 +361,7 @@ func NewServiceHAProxyReplicas(cr *api.PerconaXtraDBCluster) *corev1.Service {
 	return obj
 }
 
-func NewServiceHAProxyReplicasName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
+func HAProxyReplicasNamespacedName(cr *api.PerconaXtraDBCluster) types.NamespacedName {
 	return types.NamespacedName{
 		Name:      cr.Name + "-haproxy-replicas",
 		Namespace: cr.Namespace,

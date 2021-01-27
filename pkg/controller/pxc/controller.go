@@ -351,7 +351,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		}
 
 		oldHAProxyService := &corev1.Service{}
-		err = r.client.Get(context.TODO(), pxc.NewServiceHaproxyName(o), oldHAProxyService)
+		err = r.client.Get(context.TODO(), pxc.HaproxyServiceNamespacedName(o), oldHAProxyService)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "failed to get HAProxy service")
 		}
@@ -405,7 +405,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		}
 
 		currentHAProxyServiceReplicas := &corev1.Service{}
-		err = r.client.Get(context.TODO(), pxc.NewServiceHAProxyReplicasName(o), currentHAProxyServiceReplicas)
+		err = r.client.Get(context.TODO(), pxc.HAProxyReplicasNamespacedName(o), currentHAProxyServiceReplicas)
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "failed to get HAProxyReplicas service")
 		}
@@ -444,7 +444,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "delete HAProxy stateful set")
 		}
-		err = r.deleteServices([]types.NamespacedName{pxc.NewServiceHaproxyName(o), pxc.NewServiceHAProxyReplicasName(o)})
+		err = r.deleteServices([]types.NamespacedName{pxc.HaproxyServiceNamespacedName(o), pxc.HAProxyReplicasNamespacedName(o)})
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "delete HAProxy replica service")
 		}
@@ -524,7 +524,7 @@ func (r *ReconcilePerconaXtraDBCluster) Reconcile(request reconcile.Request) (re
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		err = r.deleteServices([]types.NamespacedName{pxc.NewServiceProxySQLName(o), pxc.NewServiceProxySQLUnreadyName(o)})
+		err = r.deleteServices([]types.NamespacedName{pxc.ProxySQLServiceNamespacedName(o), pxc.ProxySQLUnreadyServiceNamespacedName(o)})
 		if err != nil {
 			return reconcile.Result{}, err
 		}
