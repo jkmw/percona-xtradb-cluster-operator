@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1127,14 +1128,21 @@ func isServicesPortsEqual(old, new []corev1.ServicePort) bool {
 		return false
 	}
 
-	for _, oldSpec := range old {
-		for _, newSpec := range new {
-			if oldSpec.Name == newSpec.Name {
-				if oldSpec.Port != newSpec.Port || oldSpec.Protocol != newSpec.Protocol ||
-					oldSpec.TargetPort.IntVal != newSpec.TargetPort.IntVal {
-					return false
-				}
-			}
+	// sort slice to be able to compare elements by index
+	sort.Slice(old, func(i, j int) bool {
+		return old[i].Name < old[j].Name
+	})
+
+	sort.Slice(new, func(i, j int) bool {
+		return new[i].Name < new[j].Name
+	})
+
+	for i := 0; i < len(old); i++ {
+		oldSpec, newSpec := old[i], new[i]
+		if oldSpec.Name != newSpec.Name || oldSpec.Port != newSpec.Port || oldSpec.Protocol != newSpec.Protocol ||
+			oldSpec.TargetPort.IntVal != newSpec.TargetPort.IntVal {
+
+			return false
 		}
 	}
 	return true
